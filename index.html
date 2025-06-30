@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Prediction Model</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            width: 100%;
+            margin-top: 20px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-left: 4px solid #667eea;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            border-left-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💰 Expense Amount Predictor</h1>
+        
+        <form id="predictionForm">
+            <div class="input-group">
+                <label for="participantCount">Number of Participants:</label>
+                <input type="number" id="participantCount" min="1" max="20" value="3" required>
+            </div>
+            
+            <div class="input-group">
+                <label for="deadlineDate">Deadline Date:</label>
+                <input type="date" id="deadlineDate" required>
+            </div>
+            
+            <div class="input-group">
+                <label for="deadlineMonth">Or Deadline Month (1-12):</label>
+                <input type="number" id="deadlineMonth" min="1" max="12" placeholder="Leave empty to use date above">
+            </div>
+            
+            <button type="submit" id="predictBtn">Predict Expense Amount</button>
+        </form>
+        
+        <div id="modelInfo" style="display: none;"></div>
+        <div id="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Include the ExpenseModel class here
+        class ExpenseModel {
+            constructor() {
+                this.model = null;
+                this.scalerParams = null;
+                this.metadata = null;
+                this.isLoaded = false;
+            }
+
+            async loadModel() {
+                try {
+                    console.log('🔄 Loading model...');
+                    
+                    this.model = await tf.loadLayersModel('./model.json');
+                    
+                    const scalerResponse = await fetch('./scaler_params.json');
+                    this.scalerParams = await scalerResponse.json();
+                    
+                    const metadataResponse = await fetch('./model_metadata.json');
+                    this.metadata = await metadataResponse.json();
+                    
+                    this.isLoaded = true;
+                    console.log('✅ Model loaded successfully');
+                } catch (error) {
+                    console.error('❌ Error loading model:', error);
+                    throw error;
+                }
+            }
+
+            preprocessData(participantCount, deadlineMonth) {
+                if (!this.scalerParams) {
+                    throw new Error('Scaler parameters not loaded');
+                }
+
+                const features = [participantCount, deadlineMonth];
+                const { mean, scale } = this.scalerParams;
+                const scaledFeatures = features.map((value, index) => {
+                    return (value - mean[index]) / scale[index];
+                });
+                
+                return tf.tensor2d([scaledFeatures]);
+            }
+
+            async predict(participantCount, deadlineMonth) {
+                if (!this.isLoaded) {
+                    await this.loadModel();
+                }
+
+                try {
+                    const processedInput = this.preprocessData(participantCount, deadlineMonth);
+                    const prediction = this.model.predict(processedInput);
+                    const results = await prediction.data();
+                    
+                    processedInput.dispose();
+                    prediction.dispose();
+                    
+                    return results[0];
+                } catch (error) {
+                    console.error('❌ Prediction error:', error);
+                    throw error;
+                }
+            }
+
+            getMonthFromDate(dateString) {
+                const date = new Date(dateString);
+                return date.getMonth() + 1;
+            }
+
+            async predictExpense(participantCount, deadlineDate) {
+                const deadlineMonth = this.getMonthFromDate(deadlineDate);
+                return await this.predict(participantCount, deadlineMonth);
+            }
+
+            getModelInfo() {
+                if (!this.metadata) return null;
+                return {
+                    features: this.metadata.features,
+                    target: this.metadata.target,
+                    trainingSamples: this.metadata.training_samples,
+                    testMAE: this.metadata.test_mae,
+                    version: this.metadata.model_version
+                };
+            }
+        }
+
+        // Initialize model
+        const expenseModel = new ExpenseModel();
+
+        // Load model info on page load
+        window.addEventListener('load', async () => {
+            try {
+                await expenseModel.loadModel();
+                const modelInfo = expenseModel.getModelInfo();
+                
+                const modelInfoDiv = document.getElementById('modelInfo');
+                modelInfoDiv.innerHTML = `
+                    <div class="result" style="background: #e8f5e8; border-left-color: #28a745;">
+                        <strong>✅ Model Ready!</strong><br>
+                        Training samples: ${modelInfo.trainingSamples}<br>
+                        Test MAE: ${modelInfo.testMAE.toFixed(2)}<br>
+                        Features: ${modelInfo.features.join(', ')}
+                    </div>
+                `;
+                modelInfoDiv.style.display = 'block';
+            } catch (error) {
+                const modelInfoDiv = document.getElementById('modelInfo');
+                modelInfoDiv.innerHTML = `
+                    <div class="result error">
+                        <strong>❌ Model Loading Failed:</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+                modelInfoDiv.style.display = 'block';
+            }
+        });
+
+        // Form handling
+        document.getElementById('predictionForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const resultDiv = document.getElementById('result');
+            const predictBtn = document.getElementById('predictBtn');
+            
+            try {
+                predictBtn.disabled = true;
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<div class="loading">🧠 Making prediction...</div>';
+                
+                // Get input values
+                const participantCount = parseInt(document.getElementById('participantCount').value);
+                const deadlineDate = document.getElementById('deadlineDate').value;
+                const deadlineMonth = document.getElementById('deadlineMonth').value;
+                
+                let prediction;
+                let inputDescription;
+                
+                // Use month input if provided, otherwise use date
+                if (deadlineMonth) {
+                    prediction = await expenseModel.predict(participantCount, parseInt(deadlineMonth));
+                    inputDescription = `${participantCount} participants, month ${deadlineMonth}`;
+                } else if (deadlineDate) {
+                    prediction = await expenseModel.predictExpense(participantCount, deadlineDate);
+                    inputDescription = `${participantCount} participants, deadline ${deadlineDate}`;
+                } else {
+                    throw new Error('Please provide either a deadline date or month');
+                }
+                
+                // Display result
+                resultDiv.innerHTML = `
+                    <div class="result">
+                        <strong>💰 Predicted Expense Amount:</strong><br>
+                        <span style="font-size: 1.5em; color: #667eea; font-weight: bold;">${prediction.toFixed(2)}</span><br>
+                        <small style="color: #666;">For: ${inputDescription}</small>
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="result error">
+                        <strong>❌ Error:</strong> ${error.message}
+                    </div>
+                `;
+            } finally {
+                predictBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
