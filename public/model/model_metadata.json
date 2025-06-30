@@ -1,0 +1,18 @@
+{
+  "input_shape": [
+    null,
+    2
+  ],
+  "output_shape": [
+    null,
+    1
+  ],
+  "features": [
+    "participant_count",
+    "deadline_month"
+  ],
+  "target": "amount",
+  "training_samples": 14,
+  "test_mae": 19.47398567199707,
+  "model_version": "1.0"
+}
