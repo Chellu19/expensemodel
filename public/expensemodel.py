@@ -127,10 +127,10 @@ metadata_path = os.path.join(EXPORT_DIR, 'model_metadata.json')
 with open(metadata_path, 'w') as f:
     json.dump(metadata, f, indent=2)
 
-print(f"✅ Model exported to: {EXPORT_DIR}/")
-print(f"📊 Scaler parameters saved: {scaler_path}")
-print(f"📋 Model metadata saved: {metadata_path}")
-print(f"📦 Upload contents of {EXPORT_DIR}/ to your hosting platform")
+print(f"Model exported to: {EXPORT_DIR}/")
+print(f"Scaler parameters saved: {scaler_path}")
+print(f"Model metadata saved: {metadata_path}")
+print(f"Upload contents of {EXPORT_DIR}/ to your hosting platform")
 
 # Print model summary
 print("\n📋 Model Summary:")
@@ -150,7 +150,7 @@ for filename in ['model.json', 'scaler_params.json', 'model_metadata.json']:
         size = os.path.getsize(filepath)
         files_created.append(f"   • {filename} ({size} bytes)")
     else:
-        print(f"⚠️ Warning: {filename} not found!")
+        print(f"Warning: {filename} not found!")
 
 if files_created:
     print("\n📁 Files created:")
