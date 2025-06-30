@@ -1,0 +1,17 @@
+{
+  "name": "expense-predictor",
+  "version": "1.0.0",
+  "description": "Expense amount prediction using TensorFlow.js",
+  "main": "index.html",
+  "scripts": {
+    "start": "serve .",
+    "build": "echo 'No build step required'"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "serve": "^14.0.0"
+  },
+  "engines": {
+    "node": ">=14"
+  }
+}
